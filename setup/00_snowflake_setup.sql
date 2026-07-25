@@ -41,7 +41,11 @@ GRANT ROLE CICD_DEPLOYER TO ROLE ACCOUNTADMIN;
 
 -- ---- OIDC service user ------------------------------------------------
 -- Subject is exact and case-sensitive: repo + branch that is allowed to
--- authenticate. Update if you rename the repo or deploy from another branch.
+-- authenticate. This account/repo emits GitHub's IMMUTABLE-ID subject
+-- format (owner@<user_id>/repo@<repo_id>) rather than the classic
+-- repo:owner/repo form. The numeric IDs are immutable, so this is stable.
+-- If the token is ever rejected with "subject ... not recognized", read
+-- the exact subject from the failed run log and match it here.
 CREATE USER IF NOT EXISTS SVC_GITHUB_ACTIONS
   TYPE = SERVICE
   DEFAULT_ROLE = CICD_DEPLOYER
@@ -50,7 +54,7 @@ CREATE USER IF NOT EXISTS SVC_GITHUB_ACTIONS
   WORKLOAD_IDENTITY = (
     TYPE = OIDC
     ISSUER = 'https://token.actions.githubusercontent.com'
-    SUBJECT = 'repo:sfc-gh-mmarzillo/cicd-demo:ref:refs/heads/main'
+    SUBJECT = 'repo:sfc-gh-mmarzillo@110615653/cicd-demo@1311441425:ref:refs/heads/main'
   );
 
 GRANT ROLE CICD_DEPLOYER TO USER SVC_GITHUB_ACTIONS;

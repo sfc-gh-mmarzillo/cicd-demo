@@ -1,0 +1,87 @@
+name: Deploy Mortgage Agent to Snowflake
+
+# Runs when changes land on main (i.e. after a PR is merged), and on demand.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'sql/**'
+      - 'tests/**'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+
+# Required for OIDC: id-token to mint the token, contents to check out the repo.
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  SNOWFLAKE_ACCOUNT: SFSENORTHAMERICA-HOL_MATTMARZILLO
+  SNOWFLAKE_ROLE: CICD_DEPLOYER
+  SNOWFLAKE_WAREHOUSE: CICD_DEMO_WH
+  SNOWFLAKE_DATABASE: CICD_DEMO_DB
+
+jobs:
+  # ---------------------------------------------------------------
+  # TEST: build tables + semantic view in a throwaway schema and run
+  # checks. Nothing here touches the PUBLIC (production) schema.
+  # ---------------------------------------------------------------
+  test:
+    runs-on: ubuntu-latest
+    env:
+      CI_SCHEMA: CI_${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Snowflake CLI (OIDC)
+        uses: snowflakedb/snowflake-actions@v2
+        with:
+          use-oidc: true
+
+      - name: Verify connection
+        run: snow connection test -x
+
+      - name: Create ephemeral CI schema
+        run: snow sql -q "CREATE OR REPLACE SCHEMA ${SNOWFLAKE_DATABASE}.${CI_SCHEMA};" -x
+
+      - name: Build tables in CI schema
+        run: snow sql -f sql/01_tables.sql --schema "${CI_SCHEMA}" -x
+
+      - name: Build semantic view in CI schema
+        run: snow sql -f sql/02_semantic_view.sql --schema "${CI_SCHEMA}" -x
+
+      - name: Run pre-deploy checks
+        run: snow sql -f tests/pre_deploy_checks.sql --schema "${CI_SCHEMA}" -x
+
+      - name: Drop ephemeral CI schema
+        if: always()
+        run: snow sql -q "DROP SCHEMA IF EXISTS ${SNOWFLAKE_DATABASE}.${CI_SCHEMA};" -x
+
+  # ---------------------------------------------------------------
+  # DEPLOY: only runs if TEST passed. Recreates the objects in PUBLIC
+  # and runs post-deploy smoke tests.
+  # ---------------------------------------------------------------
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    env:
+      SNOWFLAKE_SCHEMA: PUBLIC
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Snowflake CLI (OIDC)
+        uses: snowflakedb/snowflake-actions@v2
+        with:
+          use-oidc: true
+
+      - name: Deploy tables
+        run: snow sql -f sql/01_tables.sql --schema PUBLIC -x
+
+      - name: Deploy semantic view
+        run: snow sql -f sql/02_semantic_view.sql --schema PUBLIC -x
+
+      - name: Deploy agent
+        run: snow sql -f sql/03_agent.sql --schema PUBLIC -x
+
+      - name: Post-deploy smoke tests
+        run: snow sql -f tests/post_deploy_smoke.sql --schema PUBLIC -x

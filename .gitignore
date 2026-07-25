@@ -1,0 +1,7 @@
+# Cortex Code / local tooling
+.snowflake/
+.DS_Store
+
+# Editor
+.vscode/
+.idea/

@@ -1,7 +1,15 @@
 name: Deploy Mortgage Agent to Snowflake
 
-# Runs when changes land on main (i.e. after a PR is merged), and on demand.
+# pull_request  -> validate only (test job), gives the PR a status check
+# push to main  -> validate + deploy (after the PR is merged)
+# workflow_dispatch -> manual validate + deploy
 on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'sql/**'
+      - 'tests/**'
+      - '.github/workflows/deploy.yml'
   push:
     branches: [main]
     paths:
@@ -58,11 +66,13 @@ jobs:
         run: snow sql -q "DROP SCHEMA IF EXISTS ${SNOWFLAKE_DATABASE}.${CI_SCHEMA};" -x
 
   # ---------------------------------------------------------------
-  # DEPLOY: only runs if TEST passed. Recreates the objects in PUBLIC
-  # and runs post-deploy smoke tests.
+  # DEPLOY: only runs if TEST passed AND this is not a pull request.
+  # PRs get validation only; deploy happens on merge to main (push)
+  # or manual dispatch. Recreates the objects in PUBLIC + smoke tests.
   # ---------------------------------------------------------------
   deploy:
     needs: test
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     env:
       SNOWFLAKE_SCHEMA: PUBLIC

@@ -44,16 +44,23 @@ A small, end-to-end demo that shows how Snowflake and GitHub work together:
 ## How the pipeline works
 
 ```
-Workspace edit --> commit + push branch --> open PR --> merge to main
-      --> GitHub Actions (on: push main)
+Workspace edit --> commit + push branch --> open PR
+      --> GitHub Actions (on: pull_request)   test job only  -> PR status check (validate, no deploy)
+   merge to main
+      --> GitHub Actions (on: push main)      test job -> deploy job
             test job:   OIDC auth -> build tables + SV in CI_<run_id> schema -> checks -> drop schema
             deploy job: recreate tables + SV + agent in PUBLIC -> smoke tests
       --> agent + semantic view updated in Snowflake
 ```
 
 - **OIDC**: `snowflakedb/snowflake-actions@v2` with `use-oidc: true` mints a short-lived token. Snowflake maps it to `SVC_GITHUB_ACTIONS` via `WORKLOAD_IDENTITY`. No password or key is stored in GitHub.
+- **PR validation**: on `pull_request`, only the `test` job runs - it validates in a throwaway `CI_<run_id>` schema and reports a status check on the PR. Nothing is deployed until the PR is merged. The `deploy` job is gated with `if: github.event_name != 'pull_request'`.
 - **Ephemeral testing**: the `test` job builds everything in a throwaway `CI_<run_id>` schema and runs `pre_deploy_checks.sql`. If the semantic view is broken, the build fails before `PUBLIC` is touched.
-- **Deploy**: the `deploy` job runs only if `test` passes, recreates the objects in `PUBLIC`, and runs `post_deploy_smoke.sql`.
+- **Deploy**: on push to `main` (merge) or manual dispatch, the `deploy` job runs only if `test` passes, recreates the objects in `PUBLIC`, and runs `post_deploy_smoke.sql`.
+
+### Make the PR check required (branch protection)
+
+To turn the PR status check into an enforced gate: GitHub repo **Settings > Branches > Add branch ruleset** (or classic branch protection) for `main` -> enable **Require status checks to pass before merging** -> select the **test** check. Merges are then blocked until validation is green.
 
 ## One-time setup (do this first, in order)
 
@@ -72,6 +79,13 @@ Workspace edit --> commit + push branch --> open PR --> merge to main
    ```
 
 2. In the Workspace **Changes** tab: create a branch, write a commit message, and **Push**.
-3. On GitHub, open a **Pull Request** from your branch into `main`, then **merge** it.
-4. The merge triggers **Actions**. Watch the `test` then `deploy` jobs run.
+3. On GitHub, open a **Pull Request** from your branch into `main`. The **test** job runs automatically and posts a status check on the PR (validation only - nothing deployed yet).
+4. Once the check is green, **merge** the PR. The merge triggers the full run: `test` then `deploy`.
 5. In Snowsight (`AI & ML > Agents`), open **Mortgage Analytics Agent** and confirm the change is live (e.g. ask "What is the average interest rate by product type?").
+
+## Extending this for real use
+
+Two natural next steps, left as exercises so the demo stays focused:
+
+- **Test agent/answer quality in CI, not just object existence.** Add verified queries (`AI_VERIFIED_QUERIES`) to the semantic view and add a pipeline step that evaluates them (native semantic-view `sql_correctness` evaluation, or exercise the agent with `DATA_AGENT_RUN`). This gates deploys on AI accuracy, not just "the DDL compiled."
+- **Environment promotion.** Deploy feature branches to a `DEV` schema and `main` to `PUBLIC` by parameterizing the target schema per branch - the same scripts, a different `--schema`.

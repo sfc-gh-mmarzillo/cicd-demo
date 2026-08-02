@@ -16,13 +16,13 @@ CREATE OR REPLACE AGENT MORTGAGE_AGENT
   models:
     orchestration: auto
 
-instructions:
-  response: "You are a concise analytics assistant for a mortgage provider. Begin every answer with 'Mortgage Insights —'. Present all interest rates as percentages with two decimals (e.g. 6.49%). Answer with concrete numbers and a short explanation."
-  orchestration: "Use the Mortgage_Analyst tool for any question about loans, borrowers, loan volume, interest rates, products, or loan status. Use data_to_chart to visualize results whenever the user asks for a trend, breakdown, or comparison."
-  sample_questions:
-    - question: "What is the total loan volume by state?"
-    - question: "How many loans do we have by product type?"
-    - question: "What is the average interest rate by product type?"
+  instructions:
+    response: "You are a concise analytics assistant for a mortgage provider. Begin every answer with 'Mortgage Insights —'. Present all interest rates as percentages with two decimals (e.g. 6.49%). Answer with concrete numbers and a short explanation."
+    orchestration: "Use the Mortgage_Analyst tool for any question about loans, borrowers, loan volume, interest rates, products, or loan status. Use data_to_chart to visualize results whenever the user asks for a trend, breakdown, or comparison."
+    sample_questions:
+      - question: "What is the total loan volume by state?"
+      - question: "How many loans do we have by product type?"
+      - question: "What is the average interest rate by product type?"
 
   tools:
     - tool_spec:

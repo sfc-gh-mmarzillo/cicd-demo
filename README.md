@@ -71,17 +71,22 @@ To turn the PR status check into an enforced gate: GitHub repo **Settings > Bran
 
 ## Running the demo
 
-1. In the Snowflake Workspace, make a small change - e.g. add a metric to [`sql/02_semantic_view.sql`](sql/02_semantic_view.sql):
+1. In the Snowflake Workspace, make a small, visible change to the agent in [`sql/03_agent.sql`](sql/03_agent.sql). Edit the `response` instruction and add a sample question:
 
-   ```sql
-   loans.avg_interest_rate AS AVG(loans.interest_rate)
-     COMMENT = 'Average interest rate across loans',
+   ```yaml
+   instructions:
+     response: "You are a concise analytics assistant for a mortgage provider. Begin every answer with 'Mortgage Insights —'. Present all interest rates as percentages with two decimals (e.g. 6.49%). Answer with concrete numbers and a short explanation."
+     orchestration: "Use the Mortgage_Analyst tool for any question about loans, borrowers, loan volume, interest rates, products, or loan status. Use data_to_chart to visualize results whenever the user asks for a trend, breakdown, or comparison."
+     sample_questions:
+       - question: "What is the total loan volume by state?"
+       - question: "How many loans do we have by product type?"
+       - question: "What is the average interest rate by product type?"
    ```
 
 2. In the Workspace **Changes** tab: create a branch, write a commit message, and **Push**.
 3. On GitHub, open a **Pull Request** from your branch into `main`. The **test** job runs automatically and posts a status check on the PR (validation only - nothing deployed yet).
 4. Once the check is green, **merge** the PR. The merge triggers the full run: `test` then `deploy`.
-5. In Snowsight (`AI & ML > Agents`), open **Mortgage Analytics Agent** and confirm the change is live (e.g. ask "What is the average interest rate by product type?").
+5. In Snowsight (`AI & ML > Agents`), open **Mortgage Analytics Agent** and ask "What's the average interest rate by product type?". The answer now starts with **"Mortgage Insights —"** and formats rates as percentages (e.g. 6.49%) - a visible, agent-level change shipped entirely through the PR + CI/CD flow.
 
 ## Extending this for real use
 
